@@ -1,8 +1,11 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const connectDB = require('./db');
 const Product = require('./models/product/product');
-
+const User = require('./models/user/user');
+require('dotenv').config();
 
 const app = express();
 
@@ -42,6 +45,57 @@ app.post('/product', async (req, res) => {
         console.error('Error adding product:', error);
         res.status(500).json({ message: 'Server error while adding product' });
     }
+});
+
+app.post('/register', async (req, res) => {
+    try {
+        const {username, password} = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({ username, password: hashedPassword})
+        await newUser.save();
+        res.status(201).json({message: 'User registered successfully'});
+    } catch (error) {
+        console.error('Error registering user:', error);
+        res.status(500).json({message: 'Server error while registering user'})
+    }
+});
+
+app.post('/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+        const token = jwt.sign({ userId: user._id }, process.env.secretKey, { expiresIn: '1h' });
+        res.json({ token });
+    } catch (error) {
+        console.error('Error logging in:', error);
+        res.status(500).json({ message: 'Server error while logging in' });
+    }
+});
+
+const authenticate = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.secretKey);
+        req.userId = decoded.userId;
+        next();
+    } catch (error) {
+        console.error('Error verifying token:', error);
+        res.status(401).json({ message: 'Invalid token' });
+    }
+};
+
+app.get('/protected', authenticate, (req, res) => {
+    res.json({ message: 'Access to protected route granted' });
 });
 
 // DELETE METHOD

@@ -3,13 +3,20 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import ProductForm from '../../components/ProductForm/ProductForm';
 import ProductList from '../../components/ProductList/ProductList';
+import { useNavigate } from 'react-router-dom';
 
 function App() {
   const [products, setProducts] = useState([]);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (!localStorage.getItem('token')) {
+      navigate('/login');
+    } else {
+      fetchProducts();
+    }
+  }, [navigate]);
 
   const fetchProducts = async () => {
     try {
